@@ -6,8 +6,6 @@
 #include "../render/pixel.h"
 #include "../render/depth.h"
 
-Depth * zetaBuffer;
-Pixel * frameBuffer;
 
 void memoryBackendinit( Renderer * ren, BackEnd * backEnd, Vec4i _rect) {
 
@@ -21,14 +19,14 @@ void memoryBackendafterRender( Renderer * ren,  BackEnd * backEnd) {
 }
 
 Pixel * memoryBackendgetFrameBuffer( Renderer * ren,  BackEnd * backEnd) {
-    return frameBuffer;
+    return ((MemoryBackend *) backEnd) -> frameBuffer;
 }
 
 Depth * memoryBackendgetZetaBuffer( Renderer * ren,  BackEnd * backEnd) {
-    return zetaBuffer;
+    return ((MemoryBackend *) backEnd) -> zetaBuffer;
 }
 
-void memoryBackendInit( MemoryBackend * this, Vec2i size) {
+void memoryBackendInit( MemoryBackend * this, Pixel * buf, Vec2i size) {
 
     this->backend.init = &memoryBackendinit;
     this->backend.beforeRender = &memoryBackendbeforeRender;
@@ -36,6 +34,6 @@ void memoryBackendInit( MemoryBackend * this, Vec2i size) {
     this->backend.getFrameBuffer = &memoryBackendgetFrameBuffer;
     this->backend.getZetaBuffer = &memoryBackendgetZetaBuffer;
 
-    zetaBuffer = malloc(size.x*size.y*sizeof (Depth));
-    frameBuffer = malloc(size.x*size.y*sizeof (Pixel));
+    this -> zetaBuffer = malloc(size.x*size.y*sizeof (Depth));
+    this -> frameBuffer = buf;
 }

@@ -1,11 +1,5 @@
-/* Blink Example
 
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
 
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 #include <stdio.h>
 
 #include "freertos/FreeRTOS.h"
@@ -32,20 +26,23 @@
 #include "tft_espi/tft.h"
 
 //RENTERTEST
-#define SCREEN_WIDTH 240
-#define SCREEN_HEIGHT 135
+typedef struct __attribute__((__packed__)) PConv {
+    uint8_t red:5;
+    uint8_t green:6;
+    uint8_t blue:5;
+} PConv;
+
 
 #define BACKGROUND_COLOR    0
 #define GRID_COLOR          0xFFFF
-
-uint16_t frameBuffer[SCREEN_WIDTH][SCREEN_HEIGHT];
-
-//TFT
+/*
+#define DEFAULT_TFT_DISPLAY_WIDTH   135
+#define DEFAULT_TFT_DISPLAY_HEIGHT  240
+*/
+Pixel frameBuffer[DEFAULT_TFT_DISPLAY_WIDTH][DEFAULT_TFT_DISPLAY_HEIGHT];
+uint16_t copyBuffer[DEFAULT_TFT_DISPLAY_HEIGHT][DEFAULT_TFT_DISPLAY_WIDTH];
 
 #define SPI_BUS TFT_VSPI_HOST
-
-
-
 
 spi_lobo_device_handle_t spi;
 void app_main(void)
@@ -63,7 +60,7 @@ void app_main(void)
         .sclk_io_num=PIN_NUM_CLK,				// set SPI CLK pin
         .quadwp_io_num=-1,
         .quadhd_io_num=-1,
-        .max_transfer_sz = SCREEN_HEIGHT * SCREEN_WIDTH * 2 + 8,
+        .max_transfer_sz = DEFAULT_TFT_DISPLAY_HEIGHT * DEFAULT_TFT_DISPLAY_WIDTH * 2 + 8,
     };
 
     spi_lobo_device_interface_config_t devcfg={
@@ -107,44 +104,11 @@ void app_main(void)
     TFT_setRotation(PORTRAIT_FLIP);
 
     int count = 0;
-    while (1) {
-        int  pixel = rand()%255;
-        for (int i = 0; i < SCREEN_HEIGHT; i++) {
-            for (int j = 0; j < SCREEN_WIDTH; j++) {
 
-                frameBuffer[j][i] =  BACKGROUND_COLOR;
-
-                if (  ((i + count) % 16) == 0 || ((j + count) % 16) == 0 )
-                    frameBuffer[j][i] =  GRID_COLOR;
-            }
-        }
-        count = count + 1;
-
-        int xOff = 52;
-        int yOff = 40;
-        int xSize = 135;
-        int ySize = 240;
-
-        disp_select();
-        //wait_trans_finish(1);
-
-        send_data2(xOff, yOff, xSize+xOff-1, yOff+ySize, xSize*ySize-1, &frameBuffer[0][0]);
-
-        //wait_trans_finish(1);
-
-        disp_deselect();
-
-        TFT_drawCircle(80, 80, 40, (color_t){pixel,pixel,pixel});
-
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-
-
-    /*
-    Vec2i size = {135, 135};
+    Vec2i size = {  DEFAULT_TFT_DISPLAY_HEIGHT, DEFAULT_TFT_DISPLAY_WIDTH};
 
     MemoryBackend mB;
-    memoryBackendInit(&mB, size);
+    memoryBackendInit(&mB, &frameBuffer, size);
 
     Renderer renderer;
     rendererInit(&renderer, size,(BackEnd*) &mB );
@@ -153,26 +117,6 @@ void app_main(void)
     sceneInit(&s);
     rendererSetScene(&renderer, &s);
 
-    Object cube1;
-    cube1.mesh = &mesh_cube;
-    sceneAddRenderable(&s, object_as_renderable(&cube1));
-    cube1.material = 0;
-
-    Object cube2;
-    cube2.mesh = &mesh_cube;
-    sceneAddRenderable(&s, object_as_renderable(&cube2));
-
-    //TEXTURE FOR CUBE 2
-    Texture tex;
-    texture_init(&tex, (Vec2i){8,8}, malloc(8*8*sizeof(Pixel)));
-
-    for (int i = 0; i < 8; i++)
-        for (int y = 0; y < 8; y++)
-            ((uint32_t *)tex.frameBuffer)[i * 8 + y ] = (i + y) % 2 == 0 ? 0xFFFFFFFF : 0x000000FF;
-
-    Material m;
-    m.texture = &tex;
-    cube2.material = &m;
 
     Object tea;
     tea.mesh = &mesh_teapot;
@@ -187,21 +131,9 @@ void app_main(void)
         renderer.camera_projection = mat4Perspective( 2, 16.0,(float)size.x / (float)size.y, 50.0);
 
         //VIEW MATRIX
-        Mat4 v = mat4Translate((Vec3f) { 0,0,-9});
+        Mat4 v = mat4Translate((Vec3f) { 0,0,-5});
         Mat4 rotateDown = mat4RotateX(0.40); //Rotate around origin/orbit
         renderer.camera_view = mat4MultiplyM(&rotateDown, &v );
-
-        //CUBE 1 TRANSFORM
-        cube1.transform =  mat4RotateY(phi2 -= 0.01);
-        t = mat4Scale((Vec3f){1,1,1});
-        cube1.transform = mat4MultiplyM(&cube1.transform, &t );
-        t = mat4Translate((Vec3f){-5,0.0,0});
-        cube1.transform = mat4MultiplyM(&cube1.transform, &t );
-
-        //CUBE 2 TRANSFORM
-        cube2.transform =  mat4Translate((Vec3f){5,0.0,0});
-        t = mat4Scale((Vec3f){1,1,1});
-        cube2.transform = mat4MultiplyM(&cube2.transform, &t );
 
 
         //TEA TRANSFORM
@@ -215,13 +147,32 @@ void app_main(void)
         s.transform = mat4RotateY(phi += 0.01);
 
         rendererSetCamera(&renderer,(Vec4i){0,0,size.x,size.y});
-        printf("1");
+        wait_trans_finish(1);
         rendererRender(&renderer);
+
+        int xOff = 52;
+        int yOff = 40;
+        int xSize = 135;
+        int ySize = 240;
+        printf("%d", sizeof(PConv));
+        for (int i = 0; i < DEFAULT_TFT_DISPLAY_HEIGHT; i++) {
+            for (int j = 0; j < DEFAULT_TFT_DISPLAY_WIDTH; j++) {
+                uint32_t v = (frameBuffer[j][i].g / 4) ;
+
+                copyBuffer[i][j] = (v >> 3 << 11) + (v >> 2 << 5) + (v >> 3);
+
+            }
+        }
+
+        count++;
+        disp_select();
+        send_data2(xOff, yOff, xSize+xOff-1, yOff+ySize, xSize*ySize-1, &copyBuffer[0][0]);
+        disp_deselect();
 
         printf("PHY %f\n", phi);
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
-*/
+
 
     /*
     gpio_pad_select_gpio(BLINK_GPIO);

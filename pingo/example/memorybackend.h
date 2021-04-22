@@ -8,8 +8,10 @@ typedef struct Depth Depth;
 
 typedef  struct {
     BackEnd backend;
+    Depth * zetaBuffer;
+    Pixel * frameBuffer;
     Vec2i size;
 } MemoryBackend;
 
-void memoryBackendInit(MemoryBackend * ths, Vec2i size);
+void memoryBackendInit(MemoryBackend * ths, Pixel * buf, Vec2i size);
 
