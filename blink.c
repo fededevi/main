@@ -12,12 +12,11 @@
 #include "freertos/task.h"
 
 #include "driver/gpio.h"
-
-
 #include "sdkconfig.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
 
+//PINGO
 #include "pingo/math/vec2.h"
 #include "pingo/render/mesh.h"
 #include "pingo/example/teapot.h"
@@ -32,7 +31,21 @@
 
 #include "tft_espi/tft.h"
 
-#define SPI_BUS TFT_HSPI_HOST
+//RENTERTEST
+#define SCREEN_WIDTH 240
+#define SCREEN_HEIGHT 135
+
+#define BACKGROUND_COLOR    0
+#define GRID_COLOR          0xFFFF
+
+uint16_t frameBuffer[SCREEN_WIDTH][SCREEN_HEIGHT];
+
+//TFT
+
+#define SPI_BUS TFT_VSPI_HOST
+
+
+
 
 spi_lobo_device_handle_t spi;
 void app_main(void)
@@ -50,7 +63,7 @@ void app_main(void)
         .sclk_io_num=PIN_NUM_CLK,				// set SPI CLK pin
         .quadwp_io_num=-1,
         .quadhd_io_num=-1,
-        .max_transfer_sz = 6*1024,
+        .max_transfer_sz = SCREEN_HEIGHT * SCREEN_WIDTH * 2 + 8,
     };
 
     spi_lobo_device_interface_config_t devcfg={
@@ -67,18 +80,11 @@ void app_main(void)
     printf("==============================\r\n");
     printf("Pins used: miso=%d, mosi=%d, sck=%d, cs=%d\r\n", PIN_NUM_MISO, PIN_NUM_MOSI, PIN_NUM_CLK, PIN_NUM_CS);
 
-
-    printf("==============================\r\n\r\n");
-
-    // ==================================================================
-    // ==== Initialize the SPI bus and attach the LCD to the SPI bus ====
-
     esp_err_t ret=spi_lobo_bus_add_device(SPI_BUS, &buscfg, &devcfg, &spi);
     assert(ret==ESP_OK);
     printf("SPI: display device added to spi bus (%d)\r\n", SPI_BUS);
     disp_spi = spi;
 
-    // ==== Test select/deselect ====
     ret = spi_lobo_device_select(spi, 1);
     assert(ret==ESP_OK);
     ret = spi_lobo_device_deselect(spi);
@@ -87,36 +93,53 @@ void app_main(void)
     printf("SPI: attached display device, speed=%u\r\n", spi_lobo_get_speed(spi));
     printf("SPI: bus uses native pins: %s\r\n", spi_lobo_uses_native_pins(spi) ? "true" : "false");
 
-
     printf("SPI: display init...\r\n");
     TFT_display_init();
     printf("OK\r\n");
 
-    // ---- Detect maximum read speed ----
     max_rdclock = find_rd_speed();
     printf("SPI: Max rd speed = %u\r\n", max_rdclock);
 
-    // ==== Set SPI clock used for display operations ====
     spi_lobo_set_speed(spi, DEFAULT_SPI_CLOCK);
     printf("SPI: Changed speed to %u\r\n", spi_lobo_get_speed(spi));
 
-    printf("\r\n---------------------\r\n");
-    printf("Graphics demo started\r\n");
-    printf("---------------------\r\n");
-
-    font_rotate = 0;
-    text_wrap = 0;
-    font_transparent = 0;
-    font_forceFixed = 0;
-    gray_scale = 0;
     TFT_setGammaCurve(DEFAULT_GAMMA_CURVE);
-    TFT_setRotation(PORTRAIT);
-    TFT_fillScreen(TFT_BLUE);
-    TFT_resetclipwin();
+    TFT_setRotation(PORTRAIT_FLIP);
 
+    int count = 0;
     while (1) {
+        int  pixel = rand()%255;
+        for (int i = 0; i < SCREEN_HEIGHT; i++) {
+            for (int j = 0; j < SCREEN_WIDTH; j++) {
+
+                frameBuffer[j][i] =  BACKGROUND_COLOR;
+
+                if (  ((i + count) % 16) == 0 || ((j + count) % 16) == 0 )
+                    frameBuffer[j][i] =  GRID_COLOR;
+            }
+        }
+        count = count + 1;
+
+        int xOff = 52;
+        int yOff = 40;
+        int xSize = 135;
+        int ySize = 240;
+
+        disp_select();
+        //wait_trans_finish(1);
+
+        send_data2(xOff, yOff, xSize+xOff-1, yOff+ySize, xSize*ySize-1, &frameBuffer[0][0]);
+
+        //wait_trans_finish(1);
+
+        disp_deselect();
+
+        TFT_drawCircle(80, 80, 40, (color_t){pixel,pixel,pixel});
+
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
+
+
     /*
     Vec2i size = {135, 135};
 

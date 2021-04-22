@@ -28,7 +28,6 @@ uint32_t max_rdclock = 8000000;
 int _width = DEFAULT_TFT_DISPLAY_WIDTH;
 int _height = DEFAULT_TFT_DISPLAY_HEIGHT;
 
-// Display type, DISP_TYPE_ILI9488 or DISP_TYPE_ILI9341
 uint8_t tft_disp_type = DISP_TYPE_ST7789V;
 
 // Spi device handles for display and touch screen
@@ -362,8 +361,6 @@ static void IRAM_ATTR _direct_send(color_t *color, uint32_t len, uint8_t rep)
 //----------------------------------------------------------------------------------------------
 static void IRAM_ATTR _TFT_pushColorRep(color_t *color, uint32_t len, uint8_t rep, uint8_t wait)
 {
-    if (len == 0) return;
-    if (!(disp_spi->cfg.flags & LB_SPI_DEVICE_HALFDUPLEX)) return;
 
     // Send RAM WRITE command
     gpio_set_level(PIN_NUM_DC, 0);
@@ -374,64 +371,36 @@ static void IRAM_ATTR _TFT_pushColorRep(color_t *color, uint32_t len, uint8_t re
 
     gpio_set_level(PIN_NUM_DC, 1);								// Set DC to 1 (data mode);
 
-    if ((len*24) <= 512) {
 
-        _direct_send(color, len, rep);
+    _dma_send((uint8_t *)color, len*3);
 
-    }
-    else if (rep == 0)  {
-        // ==== use DMA transfer ====
-        // ** Prepare data
-        if (gray_scale) {
-            for (int n=0; n<len; n++) {
-                color[n] = color2gs(color[n]);
-            }
-        }
 
-        _dma_send((uint8_t *)color, len*3);
-    }
-    else {
-        // ==== Repeat color, more than 512 bits total ====
+}
 
-        color_t _color;
-        uint32_t buf_colors;
-        int buf_bytes, to_send;
+static void IRAM_ATTR _TFT_pushColorRep2(uint16_t *color, uint32_t len)
+{
 
-        /*
-        to_send = len;
-        while (to_send > 0) {
-            wait_trans_finish(0);
-            _direct_send(color, ((to_send > 21) ? 21 : to_send), rep);
-            to_send -= 21;
-        }
-        */
+    printf("a");
+    if (len == 0) return;
+    printf("1");
+    if (!(disp_spi->cfg.flags & LB_SPI_DEVICE_HALFDUPLEX)) return;
+    printf("2");
 
-        buf_colors = ((len > (_width*2)) ? (_width*2) : len);
-        buf_bytes = buf_colors * 3;
+    // Send RAM WRITE command
+    gpio_set_level(PIN_NUM_DC, 0);
+    printf("3a");
+    disp_spi->host->hw->data_buf[0] = (uint32_t)TFT_RAMWR;
+    printf("4");
+    disp_spi->host->hw->mosi_dlen.usr_mosi_dbitlen = 7;
+    printf("5");
+    disp_spi->host->hw->cmd.usr = 1;		// Start transfer
+    printf("6");
+    while (disp_spi->host->hw->cmd.usr);	// Wait for SPI bus ready
+    printf("7");
 
-        // Prepare color buffer of maximum 2 color lines
-        trans_cline = heap_caps_malloc(buf_bytes, MALLOC_CAP_DMA);
-        if (trans_cline == NULL) return;
-
-        // Prepare fill color
-        if (gray_scale) _color = color2gs(color[0]);
-        else _color = color[0];
-
-        // Fill color buffer with fill color
-        for (uint32_t i=0; i<buf_colors; i++) {
-            trans_cline[i] = _color;
-        }
-
-        // Send 'len' colors
-        to_send = len;
-        while (to_send > 0) {
-            wait_trans_finish(0);
-            _dma_send((uint8_t *)trans_cline, ((to_send > buf_colors) ? buf_bytes : (to_send*3)));
-            to_send -= buf_colors;
-        }
-    }
-
-    if (wait) wait_trans_finish(1);
+    gpio_set_level(PIN_NUM_DC, 1);								// Set DC to 1 (data mode);
+    printf("8");
+    _dma_send((uint8_t *)color, len*2);
 }
 
 // Write 'len' color data to TFT 'window' (x1,y2),(x2,y2)
@@ -450,12 +419,63 @@ void IRAM_ATTR TFT_pushColorRep(int x1, int y1, int x2, int y2, color_t color, u
 
 // Write 'len' color data to TFT 'window' (x1,y2),(x2,y2) from given buffer
 // ** Device must already be selected **
-//-----------------------------------------------------------------------------------
+//---------------------------- -------------------------------------------------------
 void IRAM_ATTR send_data(int x1, int y1, int x2, int y2, uint32_t len, color_t *buf)
 {
     // ** Send address window **
     disp_spi_transfer_addrwin(x1, x2, y1, y2);
-    _TFT_pushColorRep(buf, len, 0, 0);
+
+    gpio_set_level(PIN_NUM_DC, 0);
+    disp_spi->host->hw->data_buf[0] = (uint32_t)TFT_RAMWR;
+    disp_spi->host->hw->mosi_dlen.usr_mosi_dbitlen = 7;
+    disp_spi->host->hw->cmd.usr = 1;		// Start transfer
+    while (disp_spi->host->hw->cmd.usr);	// Wait for SPI bus ready
+
+    gpio_set_level(PIN_NUM_DC, 1);								// Set DC to 1 (data mode);
+
+
+    //Fill DMA descriptors
+    spi_lobo_dmaworkaround_transfer_active(disp_spi->host->dma_chan); //mark channel as active
+    spi_lobo_setup_dma_desc_links(disp_spi->host->dmadesc_tx, len*3, buf, false);
+    disp_spi->host->hw->user.usr_mosi_highpart=0;
+    disp_spi->host->hw->dma_out_link.addr=(int)(&disp_spi->host->dmadesc_tx[0]) & 0xFFFFF;
+    disp_spi->host->hw->dma_out_link.start=1;
+    disp_spi->host->hw->user.usr_mosi_highpart=0;
+
+    disp_spi->host->hw->mosi_dlen.usr_mosi_dbitlen = (len*3 * 8) - 1;
+
+    _dma_sending = 1;
+    // Start transfer
+    disp_spi->host->hw->cmd.usr = 1;
+}
+
+void IRAM_ATTR send_data2(int x1, int y1, int x2, int y2, uint32_t len, uint16_t *buf)
+{
+    // ** Send address window **
+    disp_spi_transfer_addrwin(x1, x2, y1, y2);
+
+    gpio_set_level(PIN_NUM_DC, 0);
+    disp_spi->host->hw->data_buf[0] = (uint32_t)TFT_RAMWR;
+    disp_spi->host->hw->mosi_dlen.usr_mosi_dbitlen = 7;
+    disp_spi->host->hw->cmd.usr = 1;		// Start transfer
+    while (disp_spi->host->hw->cmd.usr);	// Wait for SPI bus ready
+
+    gpio_set_level(PIN_NUM_DC, 1);								// Set DC to 1 (data mode);
+
+
+    //Fill DMA descriptors
+    spi_lobo_dmaworkaround_transfer_active(disp_spi->host->dma_chan); //mark channel as active
+    spi_lobo_setup_dma_desc_links(disp_spi->host->dmadesc_tx, len*2, buf, false);
+    disp_spi->host->hw->user.usr_mosi_highpart=0;
+    disp_spi->host->hw->dma_out_link.addr=(int)(&disp_spi->host->dmadesc_tx[0]) & 0xFFFFF;
+    disp_spi->host->hw->dma_out_link.start=1;
+    disp_spi->host->hw->user.usr_mosi_highpart=0;
+
+    disp_spi->host->hw->mosi_dlen.usr_mosi_dbitlen = (len*2 * 8) - 1;
+
+    _dma_sending = 1;
+    // Start transfer
+    disp_spi->host->hw->cmd.usr = 1;
 }
 
 // Reads 'len' pixels/colors from the TFT's GRAM 'window'
