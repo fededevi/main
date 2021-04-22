@@ -13,6 +13,7 @@
 
 #include "driver/gpio.h"
 
+
 #include "sdkconfig.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
@@ -29,10 +30,15 @@
 #include "pingo/render/object.h"
 #include "pingo/math/mat3.h"
 
+#include "tft_espi/tft.h"
 
 
 void app_main(void)
 {
+    TFT_fillScreen(TFT_BLUE);
+    //TFT_resetclipwin();
+
+/*
     Vec2i size = {135, 135};
 
     MemoryBackend mB;
@@ -113,7 +119,7 @@ void app_main(void)
         printf("PHY %f\n", phi);
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
-
+*/
 
     /*
     gpio_pad_select_gpio(BLINK_GPIO);
