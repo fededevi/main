@@ -27,10 +27,7 @@
 
 #define BACKGROUND_COLOR    0
 #define GRID_COLOR          0xFFFF
-/*
-#define DEFAULT_TFT_DISPLAY_WIDTH   135
-#define DEFAULT_TFT_DISPLAY_HEIGHT  240
-*/
+
 Pixel frameBuffer[DEFAULT_TFT_DISPLAY_WIDTH][DEFAULT_TFT_DISPLAY_HEIGHT];
 uint16_t copyBuffer[DEFAULT_TFT_DISPLAY_HEIGHT][DEFAULT_TFT_DISPLAY_WIDTH];
 
@@ -169,20 +166,4 @@ void app_main(void)
 
         vTaskDelay(1/ portTICK_PERIOD_MS);
     }
-
-
-    /*
-    gpio_pad_select_gpio(BLINK_GPIO);
-
-    gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
-    while(1) {
-
-        printf("Turning off the LED\n");
-        gpio_set_level(BLINK_GPIO, 0);
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-
-        printf("Turning on the LED\n");
-        gpio_set_level(BLINK_GPIO, 1);
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-    }*/
 }

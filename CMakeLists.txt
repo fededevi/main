@@ -1,7 +1,7 @@
 idf_component_register(
 
     SRCS
-    "blink.c"
+    "esp3d.c"
 
     "pingo/math/mat3.c"
     "pingo/math/mat4.c"
@@ -21,6 +21,7 @@ idf_component_register(
     "pingo/render/texture.c"
     "pingo/example/cube.c"
     "pingo/example/memorybackend.c"
+    "pingo/example/ttgobackend.c"
     "pingo/example/teapot.c"
 
     "tft_espi/tft.c"
