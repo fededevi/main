@@ -469,9 +469,9 @@ void IRAM_ATTR send_data2(int x1, int y1, int x2, int y2, uint32_t len, uint16_t
     disp_spi->host->hw->user.usr_mosi_highpart=0;
     disp_spi->host->hw->dma_out_link.addr=(int)(&disp_spi->host->dmadesc_tx[0]) & 0xFFFFF;
     disp_spi->host->hw->dma_out_link.start=1;
-    disp_spi->host->hw->user.usr_mosi_highpart=0;
+    disp_spi->host->hw->user.usr_mosi_highpart=1;
 
-    disp_spi->host->hw->mosi_dlen.usr_mosi_dbitlen = (len*2 * 8) - 1;
+    disp_spi->host->hw->mosi_dlen.usr_mosi_dbitlen = (len*2 * 8);
 
     _dma_sending = 1;
     // Start transfer

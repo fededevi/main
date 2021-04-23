@@ -25,14 +25,6 @@
 
 #include "tft_espi/tft.h"
 
-//RENTERTEST
-typedef struct __attribute__((__packed__)) PConv {
-    uint8_t red:5;
-    uint8_t green:6;
-    uint8_t blue:5;
-} PConv;
-
-
 #define BACKGROUND_COLOR    0
 #define GRID_COLOR          0xFFFF
 /*
@@ -45,6 +37,13 @@ uint16_t copyBuffer[DEFAULT_TFT_DISPLAY_HEIGHT][DEFAULT_TFT_DISPLAY_WIDTH];
 #define SPI_BUS TFT_VSPI_HOST
 
 spi_lobo_device_handle_t spi;
+
+uint16_t color565(uint8_t r, uint8_t g, uint8_t b)
+{
+    uint16_t e = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+    return (e>>8) | (e<<8);
+}
+
 void app_main(void)
 {
     tft_disp_type = DISP_TYPE_ST7789V;
@@ -102,6 +101,7 @@ void app_main(void)
 
     TFT_setGammaCurve(DEFAULT_GAMMA_CURVE);
     TFT_setRotation(PORTRAIT_FLIP);
+    TFT_invertDisplay(1);
 
     int count = 0;
 
@@ -154,13 +154,11 @@ void app_main(void)
         int yOff = 40;
         int xSize = 135;
         int ySize = 240;
-        printf("%d", sizeof(PConv));
+
         for (int i = 0; i < DEFAULT_TFT_DISPLAY_HEIGHT; i++) {
             for (int j = 0; j < DEFAULT_TFT_DISPLAY_WIDTH; j++) {
-                uint32_t v = (frameBuffer[j][i].g / 4) ;
-
-                copyBuffer[i][j] = (v >> 3 << 11) + (v >> 2 << 5) + (v >> 3);
-
+                uint16_t v = (frameBuffer[j][i].g) ;
+                copyBuffer[i][j] = color565(v,v,v);
             }
         }
 
@@ -169,8 +167,7 @@ void app_main(void)
         send_data2(xOff, yOff, xSize+xOff-1, yOff+ySize, xSize*ySize-1, &copyBuffer[0][0]);
         disp_deselect();
 
-        printf("PHY %f\n", phi);
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(1/ portTICK_PERIOD_MS);
     }
 
 

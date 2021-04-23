@@ -187,6 +187,7 @@ static const uint8_t ST7789V_init[] = {
     TFT_SLPOUT, TFT_INIT_DELAY, 255,
     TFT_COLMOD, 1+TFT_INIT_DELAY, 0x55, 10,
     TFT_MADCTL, 1, 0x00,
+   // TFT_CMD_PIXFMT, 1, 0x66,
     TFT_CASET, 4, 0x00, 0x00, 0x00, 0xF0,
     TFT_PASET, 4, 0x00, 0x00, 0x00, 0xF0,
     TFT_INVON, TFT_INIT_DELAY, 10,
